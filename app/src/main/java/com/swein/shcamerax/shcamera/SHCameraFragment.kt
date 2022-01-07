@@ -6,6 +6,8 @@ import android.graphics.Color
 import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.view.*
+import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -20,6 +22,7 @@ import com.swein.shcamerax.framework.utility.debug.ILog
 import com.swein.shcamerax.framework.utility.window.WindowUtility
 import com.swein.shcamerax.shcamera.analysis.SHCameraAnalysis
 import com.swein.shcamerax.shcamera.capture.SHCameraCapture
+import com.swein.shcamerax.shcamera.controller.SHCameraControllerView
 import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.max
@@ -63,28 +66,20 @@ class SHCameraFragment : Fragment() {
         private const val RATIO_16_9_VALUE = 16.0 / 9.0
     }
 
-
-//    private lateinit var imageButtonTake: ImageButton
-//    private lateinit var imageButtonSwitchCamera: ImageButton
-//    private lateinit var imageButtonAlbum: ImageButton
-//    private lateinit var imageButtonFlash: ImageButton
-//    private lateinit var textViewAction: TextView
-//    private lateinit var imageView: ImageView
-//    private lateinit var textViewImageCount: TextView
-//    private lateinit var frameLayoutProgress: FrameLayout
+    private lateinit var frameLayoutRoot: FrameLayout
 
     private lateinit var previewView: PreviewView
     private lateinit var preview: Preview
     private lateinit var camera: Camera
     private lateinit var cameraProvider: ProcessCameraProvider
-    private var lensFacing = CameraSelector.LENS_FACING_BACK
 
     private var imageCapture: ImageCapture? = null
     private var imageAnalysis: ImageAnalysis? = null
 
     private var flash = false
-
+    private var lensFacing = CameraSelector.LENS_FACING_BACK
     private var displayId: Int = -1
+
 
     /** Blocking camera operations are performed using this executor */
     private var cameraExecutor = Executors.newSingleThreadExecutor()
@@ -98,6 +93,12 @@ class SHCameraFragment : Fragment() {
         bindCameraUseCases()
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        toggleFullScreen()
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -109,14 +110,8 @@ class SHCameraFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        activity?.let {
-            WindowUtility.layoutFullScreen(it)
-            WindowUtility.setStateBarToDarkTheme(it)
-            WindowUtility.setStatusBarColor(it, Color.TRANSPARENT)
-            WindowUtility.setNavigationBarColor(it, Color.TRANSPARENT)
-        }
-
         findView(view)
+        initController()
         initCamera(
             onLensCheck = { front: Boolean, back: Boolean ->
                 if (!front && !back) {
@@ -124,16 +119,17 @@ class SHCameraFragment : Fragment() {
                 }
 
                 if (front && back) {
-                    // show switch lens button
+                    SHCameraControllerView.enableSwitcher(frameLayoutRoot, true)
                 }
                 else {
-                    // hide switch lens button
+                    SHCameraControllerView.enableSwitcher(frameLayoutRoot, false)
                 }
             }
         )
     }
 
     private fun findView(view: View) {
+        frameLayoutRoot = view.findViewById(R.id.frameLayoutRoot)
         previewView = view.findViewById(R.id.previewView)
     }
 
@@ -212,6 +208,64 @@ class SHCameraFragment : Fragment() {
         }
     }
 
+    private fun initController() {
+
+        SHCameraControllerView.createController(
+            frameLayoutRoot.context,
+            onShutter = {
+
+            },
+            onFlash = {
+                toggleFlash()
+            },
+            onSwitch = {
+                switchCamera()
+            }
+        ).apply {
+            frameLayoutRoot.addView(this)
+        }
+    }
+
+    private fun toggleFlash() {
+
+        imageCapture?.let { imageCapture ->
+
+            flash = !flash
+
+            imageCapture.flashMode = if(flash) {
+                ImageCapture.FLASH_MODE_AUTO
+            }
+            else {
+                ImageCapture.FLASH_MODE_OFF
+            }
+
+            SHCameraControllerView.updateFlashImage(frameLayoutRoot, flash)
+        }
+    }
+
+    private fun switchCamera() {
+
+        lensFacing = if (CameraSelector.LENS_FACING_BACK == lensFacing) {
+            CameraSelector.LENS_FACING_FRONT
+        }
+        else {
+            CameraSelector.LENS_FACING_BACK
+        }
+
+        try {
+
+            previewView.post {
+                bindCameraUseCases()
+            }
+
+        }
+        catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, e.message, Toast.LENGTH_SHORT).show()
+        }
+
+    }
+
     private fun calculateScreenAspectRatio(): Int {
 
         val windowMetrics = WindowMetricsCalculator.getOrCreate().computeCurrentWindowMetrics(requireActivity())
@@ -230,6 +284,17 @@ class SHCameraFragment : Fragment() {
             return AspectRatio.RATIO_4_3
         }
         return AspectRatio.RATIO_16_9
+    }
+
+    private fun toggleFullScreen() {
+
+        activity?.let {
+            WindowUtility.layoutFullScreen(it)
+            WindowUtility.setStateBarToDarkTheme(it)
+            WindowUtility.setStatusBarColor(it, Color.TRANSPARENT)
+            WindowUtility.setNavigationBarColor(it, Color.TRANSPARENT)
+        }
+
     }
 
 }
