@@ -1,11 +1,9 @@
 package com.swein.shcamerax
 
 import android.Manifest
-import android.graphics.Color
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
 import com.swein.shcamerax.framework.utility.permission.PermissionManager
-import com.swein.shcamerax.framework.utility.window.WindowUtility
 import com.swein.shcamerax.shcamera.SHCameraFragment
 
 class MainActivity : AppCompatActivity() {
